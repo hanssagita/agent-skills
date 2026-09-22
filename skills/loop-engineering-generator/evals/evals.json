@@ -1,0 +1,33 @@
+{
+  "skill_name": "loop-engineering-generator",
+  "evals": [
+    {
+      "id": 1,
+      "name": "brownfield-repo-standards-discovery",
+      "prompt": "We have an existing TypeScript project using pnpm, vitest, and biome. I need to run an autonomous loop to fix a session expiry race condition. Scaffold the loop contract and verifier so it follows our exact repo standards.",
+      "expected_output": "The skill executes the Environment Discovery Gate, inspects workspace files, identifies the existing stack (pnpm, vitest, biome), and configures the verifier command to run the native test runner ('pnpm vitest run') without imposing foreign tools.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "greenfield-interview-and-grill",
+      "prompt": "/loop-engineering I want to build a brand new rate-limiter microservice from scratch using an autonomous loop. Scaffold the loop for me.",
+      "expected_output": "The skill recognizes this is a greenfield project, refuses to make silent assumptions, and actively grills the user on language/runtime, framework/architecture, preferred package manager, testing harness, and objective success criteria before scaffolding any contract.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "drive-in-session-code-loop-agnostic",
+      "prompt": "/loop-engineering I have this python script with 3 failing tests in tests/test_calc.py. Run a closed loop to fix them surgically. Make sure to loop on evidence not confidence, and work identically across any LLM or IDE.",
+      "expected_output": "The skill initiates the Plan -> Do -> Verify -> Decide protocol, states assumptions, executes minimal surgical edits, runs the actual test command as the Checker gate, and stops strictly when tests pass.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "diagnose-broken-agent-stack",
+      "prompt": "My coding agent in Cursor keeps saying it fixed the database migration, but when I run the server it still crashes on column not found. Then it tries to rewrite the entire ORM schema and burns $5 in API calls. What layer is failing here?",
+      "expected_output": "The skill performs a Layer Diagnosis (diagnosing this as a Loop Issue: lack of objective verifier gate + looping on self-confidence, plus an Action Policy failure causing comprehension debt), and provides the exact architectural fix.",
+      "files": []
+    }
+  ]
+}
