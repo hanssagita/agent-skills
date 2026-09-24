@@ -28,7 +28,7 @@ while [ "$ITER" -le "$MAX_ITER" ]; do
     # If an automated step command was supplied, run it first
     if [ -n "$STEP_CMD" ]; then
         echo "[STEP] Executing: $STEP_CMD"
-        eval "$STEP_CMD" || true
+        eval "$STEP_CMD" || echo "[WARN] Step command exited non-zero; continuing to verification."
     fi
 
     # Run the verification check

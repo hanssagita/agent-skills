@@ -8,8 +8,8 @@ import subprocess
 import sys
 import os
 
-def check_diff_budget(max_lines=100):
-    """Optional check ensuring uncommitted diffs remain surgical."""
+def check_diff_budget(max_lines):
+    """Fails when the uncommitted git diff exceeds the surgical-change budget."""
     try:
         res = subprocess.run("git diff --shortstat", shell=True, capture_output=True, text=True)
         if res.returncode == 0 and res.stdout.strip():
@@ -58,8 +58,8 @@ def main():
         if not run_check(cmd, desc):
             sys.exit(1)
 
-    # Enforce surgical diff check (optional, warning by default)
-    # check_diff_budget(max_lines=100)
+    if not check_diff_budget(max_lines={max_diff_lines}):
+        sys.exit(1)
 
     print("\n[SUCCESS] All verification gates passed. Loop stop condition met.")
     sys.exit(0)

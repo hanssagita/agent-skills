@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Scaffold output (if someone runs scaffold_loop.py in-repo)
+LOOP.md
+loop_state.json

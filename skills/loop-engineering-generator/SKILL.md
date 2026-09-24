@@ -5,7 +5,7 @@ license: MIT
 compatibility: Universal. Compatible with all AI coding agents (Claude Code, Cursor, Antigravity, OpenCode, Windsurf, Cline, Aider, Codex CLI, GitHub Copilot) and any model provider.
 metadata:
   version: 1.2.0
-  author: agent-skills
+  author: hanssoegiarto
   tags:
     - loop-engineering
     - autonomous-agents
@@ -145,7 +145,7 @@ Every resilient loop must explicitly define these six blocks:
 
 1. **Automation (Heartbeat):** What triggers a cycle? (CLI command, failing test, webhook).
 2. **Context (Hot & Warm State):** The minimal files, repo rules, and `.ai-context/` records the agent reads before acting.
-3. **Action Policy (Boundaries):** Strictly what the agent is allowed to touch. No unprompted refactoring. Diffs kept surgical (<50-100 lines).
+3. **Action Policy (Boundaries):** Strictly what the agent is allowed to touch. No unprompted refactoring. Diffs kept surgical (max 50 changed lines, enforced by `verify_gate.py`).
 4. **Verification Gate (The Checker):** Automated command that produces binary proof (exit code 0).
 5. **State Persistence & AI Context:** Durable memory outside LLM context (`loop_state.json`, git commits, and `.ai-context/`).
 6. **Stop Conditions:**
@@ -211,7 +211,7 @@ Follow the **Plan → Do → Verify → Decide → Promote Context** protocol:
 
 ```
 1. PLAN   ──> State single next surgical action and test hypothesis.
-2. DO     ──> Apply minimal code change. Keep diffs under 50-100 lines.
+2. DO     ──> Apply minimal code change. Keep diffs under 50 changed lines.
 3. VERIFY ──> Execute the objective verifier command in shell.
 4. DECIDE ──> If verifier exits 0: Proceed to step 5.
               If verifier fails: Extract exact error, feed to next turn.
