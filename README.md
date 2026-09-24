@@ -39,13 +39,28 @@ Once installed, trigger the skill via:
    ```
    *Auto-detects existing repository standards (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.) and sets the verifier command to match the native test runner.*
 
-2. **In-Session Execution Mode:** Follows the closed **Plan → Do → Verify → Decide** loop:
+2. **In-Session Execution Mode:** Follows the closed **Plan → Do → Verify → Decide → Promote Context** loop:
    - **Plan:** State single next surgical action and test hypothesis.
    - **Do (Maker):** Minimal code change adhering to simplicity constraints.
    - **Verify (Checker):** Run objective test command (exit code 0).
    - **Decide:** Exit on pass; feed errors back; hard stop at max 4 iterations.
+   - **Promote Context:** On pass, record decisions in `.ai-context/decisions/` and update `.ai-context/features/`.
 
 3. **Audit & Diagnosis Mode:** Diagnoses whether agent failure stems from **Harness**, **Loop**, **Graph**, or **Environment** layers.
+
+---
+
+## 🧠 Durable AI Context Memory (`.ai-context/`)
+
+Every finished loop promotes learned context into `.ai-context/` to prevent AI amnesia:
+
+- **Architecture Decision Records (ADRs):**
+  - Path: `.ai-context/decisions/NNN-<kebab-slug>.md`
+  - Records: Problem context, decision, alternatives rejected, affected files.
+- **Feature Context Notes:**
+  - Path: `.ai-context/features/<feature-slug>.md`
+  - Records: Where code lives, key flows, gotchas/conventions, and related ADR links.
+  - *Rule: Updates existing feature notes rather than creating duplicates.*
 
 ---
 

@@ -148,7 +148,49 @@ When an agentic system fails or produces low-quality work, diagnose the failure 
 
 ---
 
-## 8. Comprehension Debt & Cost Bounds
+## 8. Durable Memory Architecture: The `.ai-context/` System
+
+Agents without durable environment memory die when the session ends. The next agent starts from zero: unaware of why past architectures were chosen, unaware of existing gotchas, and prone to repeating identical mistakes.
+
+The `.ai-context/` directory acts as the **Review Boundary** and persistent memory layer:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      .ai-context/                           │
+│ ┌─────────────────────────────┐ ┌─────────────────────────┐ │
+│ │         decisions/          │ │        features/        │ │
+│ │    NNN-<kebab-slug>.md      │ │    <feature-slug>.md    │ │
+│ │ (Architecture Decisions)    │ │   (Domain Gotchas & Map)│ │
+│ └─────────────────────────────┘ └─────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 1. Architecture Decision Records (ADRs)
+- **Path:** `.ai-context/decisions/`
+- **Naming Formula:** `NNN-<kebab-slug>.md` (zero-padded, incremental: e.g. `001-swr-state-cache.md`).
+- **Core Elements:**
+  - `Context`: 1–3 sentences defining the problem / PRD driver.
+  - `Decision`: Chosen technical approach.
+  - `Alternatives rejected`: Specific alternatives considered and why they were discarded.
+  - `Affected files / modules`: Explicit file paths impacted.
+
+### 2. Feature Context Notes
+- **Path:** `.ai-context/features/`
+- **Naming Formula:** `<feature-slug>.md` (e.g. `auth.md`, `cash-loan.md`, `checkout.md`).
+- **Update Rule:** Never create duplicates; update the existing feature file as code evolves.
+- **Core Elements:**
+  - `Where it lives`: Components, hooks, models, routes, tests.
+  - `Key flows`: Entry point → outcome mapping.
+  - `Conventions / gotchas`: Project gating, SWR keys, translation namespaces, retry policies.
+  - `Related decisions`: `[[NNN-<slug>]]` links to ADRs.
+
+### 3. Closed Memory Loop
+1. **At Loop Launch:** Agent reads existing `.ai-context/decisions/` and `.ai-context/features/` to establish hot context.
+2. **At Loop Finish:** Once all objective verifier gates pass, learnings, decisions, and new gotchas are promoted to `.ai-context/`.
+
+---
+
+## 9. Comprehension Debt & Cost Bounds
 
 ### Comprehension Debt
 Comprehension debt accumulates when autonomous loops produce code faster than human operators can understand, audit, and review. Unchecked comprehension debt guarantees codebase rot.
@@ -157,4 +199,5 @@ Comprehension debt accumulates when autonomous loops produce code faster than hu
 1. **Surgical diffs:** Restrict loops to under 50–100 changed lines per iteration.
 2. **Explicit iteration caps:** Hard cap at 3–4 iterations maximum.
 3. **No drive-by refactoring:** Changing formatting, unrelated comments, or variable names in untouched functions is strictly disallowed.
-4. **Verifiable commit logs:** Every accepted iteration must state what was verified and link to the passing test evidence.
+4. **Verifiable commit logs & context notes:** Every accepted iteration must state what was verified and update `.ai-context/`.
+

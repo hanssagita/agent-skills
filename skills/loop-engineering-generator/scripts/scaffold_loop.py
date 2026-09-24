@@ -7,6 +7,7 @@ Principles:
   - Surface assumptions. Minimal code. Surgical edits.
   - Maker-Checker split: maker builds, checker validates against objective gates.
   - Respect existing repository standards (package.json, pyproject.toml, Cargo.toml, etc.).
+  - Durable AI context memory promotion (.ai-context/ decisions and feature notes).
   - LLM-agnostic & IDE-agnostic.
 """
 
@@ -75,6 +76,7 @@ LOOP_MD_TEMPLATE = """# LOOP CONTRACT: {title}
 | **Trigger** | {trigger} |
 | **Max Iterations** | {max_iterations} (hard stop) |
 | **Detected Standards** | {detected_standards} |
+| **AI Context Memory** | `.ai-context/` (ADRs & Feature Notes) |
 | **Estimated Cost Gate** | Stop if tokens exceed allocated budget or 3 consecutive iterations fail same gate |
 
 ---
@@ -88,6 +90,7 @@ LOOP_MD_TEMPLATE = """# LOOP CONTRACT: {title}
 
 ### 2. Context (Hot & Warm State)
 - Read contract: `LOOP.md`
+- Durable AI Context: Inspect `.ai-context/decisions/` and `.ai-context/features/` for past gotchas and decisions.
 - Repository standards: Follow rules in `README.md`, `package.json`, `pyproject.toml`, `AGENTS.md` (if present).
 - Target files: Inspect specific workspace files before making changes.
 - Ground rules: Think before coding, surgical edits, simplicity first.
@@ -104,9 +107,10 @@ LOOP_MD_TEMPLATE = """# LOOP CONTRACT: {title}
   ```
 - Pass condition: Clean exit code (0), zero regressions, zero unverified assumptions.
 
-### 5. State Persistence
+### 5. State Persistence & AI Context
 - Progress tracked in `loop_state.json` or git commit history.
 - Schema: `[iteration_number, changes_made, verifier_output, outcome]`
+- On completion: Learned context promoted to `.ai-context/`.
 
 ### 6. Stop Conditions
 - **SUCCESS STOP:** Primary verifier passes with zero warnings.
@@ -134,8 +138,13 @@ LOOP_MD_TEMPLATE = """# LOOP CONTRACT: {title}
                                 │
                    ┌────────────┴────────────┐
                    │   4. DECIDE (Stop/Iter) │
-                   │ Passed? -> STOP         │
+                   │ Passed? -> Step 5       │
                    │ Failed? -> Log & Loop   │
+                   └────────────┬────────────┘
+                                │
+                   ┌────────────┴────────────┐
+                   │ 5. PROMOTE CONTEXT      │
+                   │ (.ai-context/ ADR & Doc)│
                    └─────────────────────────┘
 ```
 
@@ -146,14 +155,19 @@ LOOP_MD_TEMPLATE = """# LOOP CONTRACT: {title}
    {verifier_cmd}
    ```
 4. **DECIDE:**
-   - If verifier succeeds: Mark complete, summarize verified diff, STOP.
+   - If verifier succeeds: Proceed to step 5.
    - If verifier fails: Feed error back into context, increment iteration count, repeat until `{max_iterations}`.
+5. **PROMOTE CONTEXT (.ai-context/):**
+   - **Architectural Decision (ADR):** If an architectural or design choice was made, record it in `.ai-context/decisions/NNN-<kebab-slug>.md`.
+   - **Feature Context Notes:** If feature code/structure was created or modified, update `.ai-context/features/<feature-slug>.md` with components, key flows, and gotchas.
+   - Mark task COMPLETE and summarize verified diff + updated context files.
 
 ---
 
 ## 4. Production Checklist (Before Launching Loop)
 
 - [ ] Has the repository stack been detected or grilled (language, test runner, package manager)?
+- [ ] Were existing `.ai-context/` notes and ADRs reviewed before starting?
 - [ ] Is "done" completely objective? (No subjective "looks good")
 - [ ] Can the agent run the verifier autonomously without human typing?
 - [ ] Is the failure stop condition strictly bounded (<= {max_iterations} iterations)?
@@ -231,13 +245,101 @@ while [ "$ITER" -le "$MAX_ITER" ]; do
 done
 """
 
+AI_CONTEXT_ROOT_README = """# AI Context & Durable Memory
+
+This directory stores durable architecture knowledge and feature context across development loops and agent sessions. It ensures that neither human engineers nor future AI agents suffer from amnesia.
+
+## Directory Layout
+- `decisions/`: Architecture Decision Records (ADRs) named `NNN-<kebab-slug>.md`.
+- `features/`: Feature context, key flows, and gotchas named `<feature-slug>.md`.
+
+## Lifecycle in Loops
+1. **Loop Start:** Read relevant files in `decisions/` and `features/` to absorb existing rules and past architectural decisions before taking action.
+2. **Loop Finish:** Promote new architectural decisions to `decisions/` and update or create feature notes in `features/`.
+"""
+
+AI_CONTEXT_DECISIONS_README = """# Architecture Decision Records (ADRs)
+
+This directory contains lightweight records of architectural decisions made during development loops.
+
+## Naming Formula
+`NNN-<kebab-slug>.md`
+- `NNN`: 3-digit zero-padded incremental number (e.g. `001-state-management.md`, `015-payment-webhook.md`).
+- `<kebab-slug>`: concise description of the decision.
+
+## Format & Template
+
+```markdown
+# ADR NNN: <short title>
+- Date: YYYY-MM-DD
+- Status: Accepted | Superseded | Rejected
+- RFC: docs/rfcs/<slug>.md   (or Lark/Wiki URL if applicable)
+- JIRA: CAS-xxxx, CAS-xxxx (if applicable)
+
+## Context
+<1–3 sentences: the problem / PRD driver / technical constraint>
+
+## Decision
+<chosen approach, 1–3 sentences>
+
+## Alternatives rejected
+- <approach> — <why not>
+
+## Affected files / modules
+- <path or module> — <what changes>
+```
+"""
+
+AI_CONTEXT_FEATURES_README = """# Feature Context Notes
+
+This directory maintains persistent domain knowledge, layout, conventions, and gotchas for features across the codebase.
+
+## Naming Formula
+`<feature-slug>.md`
+- Matches the feature domain or directory name (e.g. `auth.md`, `cash-loan.md`, `checkout.md`).
+- **Rule:** When modifying an existing feature, **update the existing file** rather than duplicating.
+
+## Format & Template
+
+```markdown
+# Feature: <name>
+<!-- Last updated: YYYY-MM-DD -->
+
+## Where it lives
+- Components: <path to UI components>
+- Hooks / models: <path to hooks/stores/models>
+- Routes: <page or endpoint routes>
+- Tests: <path to test suites>
+
+## Key flows
+- <flow name> — <entry point> → <outcome>
+
+## Conventions / gotchas
+- <thing future agents/developers must know: project gating, SWR keys, translation namespace, retry rules, auth checks, etc.>
+
+## Related decisions
+- [[NNN-<slug>]] — <one line summary linking to decision ADR>
+```
+"""
+
 def detect_repository_standards(target_dir: Path) -> dict:
-    """Inspects workspace to detect language, package manager, and test runner."""
+    """Inspects workspace to detect language, package manager, test runner, and AI context."""
     standards = {
         "stack": "unknown",
         "default_test_cmd": "python3 scripts/verify_gate.py",
         "configs_found": []
     }
+
+    # Check for existing .ai-context
+    ai_ctx = target_dir / ".ai-context"
+    if ai_ctx.exists():
+        standards["configs_found"].append(".ai-context/")
+        adrs = list((ai_ctx / "decisions").glob("*.md")) if (ai_ctx / "decisions").exists() else []
+        feats = list((ai_ctx / "features").glob("*.md")) if (ai_ctx / "features").exists() else []
+        adrs_clean = [f.name for f in adrs if f.name != "README.md"]
+        feats_clean = [f.name for f in feats if f.name != "README.md"]
+        if adrs_clean or feats_clean:
+            standards["configs_found"].append(f"AI-Context({len(adrs_clean)} ADRs, {len(feats_clean)} Features)")
 
     # JavaScript / TypeScript
     pkg_json = target_dir / "package.json"
@@ -303,7 +405,31 @@ def detect_repository_standards(target_dir: Path) -> dict:
 
     return standards
 
-def scaffold(output_dir: Path, archetype: str, goal: str = None, verifier_cmd: str = None):
+def scaffold_ai_context(target_dir: Path):
+    """Scaffolds .ai-context structure with guides and templates."""
+    ai_ctx_dir = target_dir / ".ai-context"
+    decisions_dir = ai_ctx_dir / "decisions"
+    features_dir = ai_ctx_dir / "features"
+
+    decisions_dir.mkdir(parents=True, exist_ok=True)
+    features_dir.mkdir(parents=True, exist_ok=True)
+
+    root_readme = ai_ctx_dir / "README.md"
+    if not root_readme.exists():
+        root_readme.write_text(AI_CONTEXT_ROOT_README, encoding="utf-8")
+        print(f"  + Created {root_readme}")
+
+    decisions_readme = decisions_dir / "README.md"
+    if not decisions_readme.exists():
+        decisions_readme.write_text(AI_CONTEXT_DECISIONS_README, encoding="utf-8")
+        print(f"  + Created {decisions_readme}")
+
+    features_readme = features_dir / "README.md"
+    if not features_readme.exists():
+        features_readme.write_text(AI_CONTEXT_FEATURES_README, encoding="utf-8")
+        print(f"  + Created {features_readme}")
+
+def scaffold(output_dir: Path, archetype: str, goal: str = None, verifier_cmd: str = None, with_ai_context: bool = True):
     output_dir.mkdir(parents=True, exist_ok=True)
     spec = TEMPLATES.get(archetype, TEMPLATES["general"])
 
@@ -358,22 +484,27 @@ def scaffold(output_dir: Path, archetype: str, goal: str = None, verifier_cmd: s
     runner_path.chmod(0o755)
     print(f"  + Created {runner_path}")
 
-    print("\n[OK] Loop contract and execution scaffolding successfully created.")
+    if with_ai_context:
+        scaffold_ai_context(output_dir)
+
+    print("\n[OK] Loop contract, execution scaffolding, and .ai-context successfully created.")
     print(f"Review your contract: {loop_md_path}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Scaffold an autonomous closed loop contract adhering to project standards.")
+    parser = argparse.ArgumentParser(description="Scaffold an autonomous closed loop contract adhering to project standards and AI context memory.")
     parser.add_argument("--type", choices=list(TEMPLATES.keys()), default="general", help="Loop archetype")
     parser.add_argument("--goal", type=str, help="Specific goal statement")
     parser.add_argument("--verifier", type=str, help="Verification command (e.g. 'pytest', 'pnpm test')")
     parser.add_argument("--output", type=str, default=".", help="Directory where files will be created")
+    parser.add_argument("--no-ai-context", action="store_true", help="Skip creating .ai-context/ directory")
 
     args = parser.parse_args()
     scaffold(
         output_dir=Path(args.output),
         archetype=args.type,
         goal=args.goal,
-        verifier_cmd=args.verifier
+        verifier_cmd=args.verifier,
+        with_ai_context=not args.no_ai_context
     )
 
 if __name__ == "__main__":

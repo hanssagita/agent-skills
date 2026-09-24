@@ -28,6 +28,13 @@
       "prompt": "My coding agent in Cursor keeps saying it fixed the database migration, but when I run the server it still crashes on column not found. Then it tries to rewrite the entire ORM schema and burns $5 in API calls. What layer is failing here?",
       "expected_output": "The skill performs a Layer Diagnosis (diagnosing this as a Loop Issue: lack of objective verifier gate + looping on self-confidence, plus an Action Policy failure causing comprehension debt), and provides the exact architectural fix.",
       "files": []
+    },
+    {
+      "id": 5,
+      "name": "post-loop-ai-context-promotion",
+      "prompt": "/loop-engineering We just finished our checkout idempotent payment loop and all 12 tests passed. Now wrap up the task and make sure future sessions remember our architecture decision on Redis distributed locks and the checkout gotchas.",
+      "expected_output": "The skill triggers Step 5 (Promote AI Context), creates an ADR under .ai-context/decisions/ (e.g. 001-redis-distributed-lock.md) documenting Context, Decision, Alternatives Rejected, and Affected Files, and updates/creates .ai-context/features/checkout.md with component paths, flows, and retry/timeout gotchas.",
+      "files": []
     }
   ]
 }

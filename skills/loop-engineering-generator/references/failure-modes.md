@@ -47,6 +47,11 @@
   3. Can the agent act end-to-end?
   4. Is "done" completely objective?
 
+### 8. Amnesiac Task Completion (No Context Promotion)
+- **The Pattern:** The agent successfully finishes a loop, tests pass, and it outputs a brief message. When the user or a future agent opens a new session tomorrow, nobody knows why a library was chosen, what gotchas were discovered, or how the new feature hooks together.
+- **The Failure:** Repeated wheel-reinvention, regression of subtle edge cases, and human comprehension debt.
+- **The Fix:** Enforce Step 5 in every loop: promote learnings into `.ai-context/decisions/NNN-<kebab-slug>.md` and `.ai-context/features/<feature-slug>.md`.
+
 ---
 
 ## 2. Prevention Matrix
@@ -60,3 +65,4 @@
 | **Comprehension Debt** | Speculative code bloat | Diff budget & zero-unprompted-refactoring rule |
 | **Context Starvation** | Poor harness design | Context injection of specific targeted files only |
 | **Aimless Wandering** | Open loop structure | Closed loop contract (`LOOP.md`) with explicit boundaries |
+| **Amnesiac Loops** | Volatile session state | Post-completion `.ai-context/` promotion (ADRs & feature notes) |

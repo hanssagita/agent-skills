@@ -60,5 +60,9 @@
 2. **DO:** Maker applies the edit. Touch only what is strictly necessary.
 3. **VERIFY:** Checker runs the objective verification command.
 4. **DECIDE:**
-   - If verifier passes: Mark loop COMPLETE and summarize verified diff.
+   - If verifier passes: Proceed to Step 5.
    - If verifier fails: Feed exact error back to next iteration. Increment counter. If counter >= Max Iterations, STOP.
+5. **PROMOTE CONTEXT (.ai-context/):**
+   - If architectural choice was made: write `.ai-context/decisions/NNN-<kebab-slug>.md`
+   - If feature code/gotchas discovered: update `.ai-context/features/<feature-slug>.md`
+   - Mark task COMPLETE and report verified diff + context documentation.
