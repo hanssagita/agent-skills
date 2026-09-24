@@ -1,11 +1,20 @@
 ---
 name: loop-engineering-generator
 description: Designs, scaffolds, audits, and executes autonomous closed-loop workflows with objective evidence gates, maker-checker split, bounded iteration budgets, zero comprehension debt, and durable AI context memory (.ai-context/ ADRs & feature notes). Adapts to existing repository standards or conducts a rigorous discovery interview for greenfield projects. Make sure to use this skill whenever the user mentions /loop-engineering, loop engineering, agent loops, feedback loops, iterative development, autonomous coding loops, TDD iteration, eval gates, or wants an agent to work in a loop until tests or verification criteria pass.
-version: 1.2.0
 license: MIT
-author: agent-skills
-tags: [loop-engineering, autonomous-agents, feedback-loops, verifier-gates, tdd, systems-architecture, ai-context, adr]
-compatible_tools: [claude-code, cursor, antigravity, opencode, gemini-cli, codex-cli, windsurf, cline, aider, github-copilot]
+compatibility: Universal. Compatible with all AI coding agents (Claude Code, Cursor, Antigravity, OpenCode, Windsurf, Cline, Aider, Codex CLI, GitHub Copilot) and any model provider.
+metadata:
+  version: 1.2.0
+  author: agent-skills
+  tags:
+    - loop-engineering
+    - autonomous-agents
+    - feedback-loops
+    - verifier-gates
+    - tdd
+    - systems-architecture
+    - ai-context
+    - adr
 ---
 
 # Loop Engineering Generator
@@ -96,7 +105,7 @@ If no codebase exists, or the workspace is empty, or the user states they are st
 **DO NOT guess or proceed on assumptions.** (Think Before Coding).
 Immediately conduct a discovery interview and grill the user on 6 dimensions:
 1. **Language & Runtime:** What programming language and runtime/version are we building in?
-2. **Framework & Architecture:** What framework or libraries are planned (e.g. Next.js, FastAPI, Axum, Gin)?
+2. **Framework & Architecture:** What framework or libraries are planned?
 3. **Tooling & Package Manager:** What package manager and build system are preferred?
 4. **Testing Harness:** What automated test framework will provide the objective verification gate? *(If no test suite exists yet, Step 1 of the loop must be scaffolding the test harness!)*
 5. **Objective Definition of Done:** What exact binary criteria or command proves the task is complete?
@@ -136,7 +145,7 @@ Every resilient loop must explicitly define these six blocks:
 
 1. **Automation (Heartbeat):** What triggers a cycle? (CLI command, failing test, webhook).
 2. **Context (Hot & Warm State):** The minimal files, repo rules, and `.ai-context/` records the agent reads before acting.
-3. **Action Policy (Boundaries):** Strictly what the agent is allowed to touch. No unprompted refactoring.
+3. **Action Policy (Boundaries):** Strictly what the agent is allowed to touch. No unprompted refactoring. Diffs kept surgical (<50-100 lines).
 4. **Verification Gate (The Checker):** Automated command that produces binary proof (exit code 0).
 5. **State Persistence & AI Context:** Durable memory outside LLM context (`loop_state.json`, git commits, and `.ai-context/`).
 6. **Stop Conditions:**
@@ -158,56 +167,18 @@ LLMs share blind spots between generation and self-evaluation. Asking an agent *
 
 ## The AI Context Memory System (`.ai-context/`)
 
-Every finished loop that resolves an issue, makes an architectural decision, or modifies a feature MUST promote its context to the durable `.ai-context/` directory. This prevents AI amnesia and eliminates comprehension debt for both human operators and future agent sessions.
+Every finished loop that resolves an issue, makes an architectural decision, or modifies a feature MUST promote its context to the durable `.ai-context/` directory.
 
-### Output 1: Architecture Decision Records (ADRs)
+### 1. Architecture Decision Records (ADRs)
 - **Location:** `.ai-context/decisions/`
 - **Naming Formula:** `NNN-<kebab-slug>.md` (e.g. `001-payment-auth.md`, `015-webhook-retry.md`)
-- **Format:**
-```markdown
-# ADR NNN: <short title>
-- Date: YYYY-MM-DD
-- Status: Accepted | Superseded | Rejected
-- RFC: docs/rfcs/<slug>.md   (or Lark/Wiki URL)
-- JIRA: <ticket-ids>
+- **Template & Guide:** See [decisions_readme.template.md](assets/ai_context/decisions_readme.template.md) for full schema (Context, Decision, Alternatives Rejected, Affected Files).
 
-## Context
-<1–3 sentences: the problem / PRD driver / technical constraint>
-
-## Decision
-<chosen approach, 1–3 sentences>
-
-## Alternatives rejected
-- <approach> — <why not>
-
-## Affected files / modules
-- <path or module> — <what changes>
-```
-
-### Output 2: Feature Context Notes
+### 2. Feature Context Notes
 - **Location:** `.ai-context/features/`
-- **Naming Formula:** `<feature-slug>.md` (e.g. `auth.md`, `cash-loan.md`, `checkout.md`)
+- **Naming Formula:** `<feature-slug>.md` (e.g. `auth.md`, `billing.md`, `checkout.md`)
 - **Rule:** When modifying an existing feature, **update the existing file** rather than creating duplicates.
-- **Format:**
-```markdown
-# Feature: <name>
-<!-- Last updated: YYYY-MM-DD -->
-
-## Where it lives
-- Components: <path to UI components>
-- Hooks / models: <path to hooks/models/stores>
-- Routes: <pages or endpoint routes>
-- Tests: <path to test suites>
-
-## Key flows
-- <flow name> — <entry point> → <outcome>
-
-## Conventions / gotchas
-- <thing future agents/developers must know: project gating, SWR keys, translation namespace, retry rules, auth checks, etc.>
-
-## Related decisions
-- [[NNN-<slug>]] — <one line summary linking to decision ADR>
-```
+- **Template & Guide:** See [features_readme.template.md](assets/ai_context/features_readme.template.md) for full schema (Where it lives, Key flows, Conventions/gotchas, Related decisions).
 
 ---
 
@@ -219,15 +190,15 @@ Use when setting up a new loop harness for a project or repository.
 
 Run the bundled CLI tool:
 ```bash
-python3 <skill_dir>/scripts/scaffold_loop.py --type [code-tdd|refactor|research-doc|general] --goal "Specific goal" --verifier "test command" --output .
+python3 scripts/scaffold_loop.py --type [code-tdd|refactor|research-doc|general] --goal "Specific goal" --verifier "test command" --output .
 ```
 
-The tool auto-detects existing repository standards (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.) and sets the verifier command to match the native test runner. It also scaffolds `.ai-context/` with decisions and feature note templates.
+The tool auto-detects existing repository standards (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.) and sets the verifier command to match the native test runner. It also safely skips existing files unless `--force` is passed.
 
 This generates:
 - `LOOP.md`: Complete loop contract with boundaries, gates, and AI context promotion steps.
 - `scripts/verify_gate.py`: Objective Python test harness that exits 0 on success.
-- `scripts/run_loop.sh`: Bounded bash execution runner with failure stops.
+- `scripts/run_loop.sh`: Bounded execution runner supporting both interactive step pauses and automated commands.
 - `.ai-context/`: Architecture Decision Records (`decisions/`) and Feature Context Notes (`features/`).
 
 ---
@@ -240,7 +211,7 @@ Follow the **Plan → Do → Verify → Decide → Promote Context** protocol:
 
 ```
 1. PLAN   ──> State single next surgical action and test hypothesis.
-2. DO     ──> Apply minimal code change. Keep diffs under 50 lines.
+2. DO     ──> Apply minimal code change. Keep diffs under 50-100 lines.
 3. VERIFY ──> Execute the objective verifier command in shell.
 4. DECIDE ──> If verifier exits 0: Proceed to step 5.
               If verifier fails: Extract exact error, feed to next turn.
@@ -293,8 +264,8 @@ Before letting any loop run unattended, verify:
 
 ## Bundled Resources
 
-- [architecture.md](file:///Users/hans.soegiarto/Documents/hans/agent-skills/skills/loop-engineering-generator/references/architecture.md) — Comprehensive 4-layer taxonomy, evidence gates, and `.ai-context/` durable memory architecture.
-- [failure-modes.md](file:///Users/hans.soegiarto/Documents/hans/agent-skills/skills/loop-engineering-generator/references/failure-modes.md) — Anti-patterns including amnesiac completion and tooling mismatch.
-- [scaffold_loop.py](file:///Users/hans.soegiarto/Documents/hans/agent-skills/skills/loop-engineering-generator/scripts/scaffold_loop.py) — Zero-dependency scaffolding utility with `.ai-context/` generation.
-- [LOOP_CONTRACT.template.md](file:///Users/hans.soegiarto/Documents/hans/agent-skills/skills/loop-engineering-generator/assets/LOOP_CONTRACT.template.md) — Standalone production contract template with context promotion.
-- [ai_context templates](file:///Users/hans.soegiarto/Documents/hans/agent-skills/skills/loop-engineering-generator/assets/ai_context/) — Templates for ADRs and Feature Context Notes.
+- [architecture.md](references/architecture.md) — Comprehensive 4-layer taxonomy, evidence gates, and `.ai-context/` durable memory architecture.
+- [failure-modes.md](references/failure-modes.md) — Anti-patterns including amnesiac completion and tooling mismatch.
+- [scaffold_loop.py](scripts/scaffold_loop.py) — Zero-dependency scaffolding utility with `.ai-context/` generation.
+- [LOOP_CONTRACT.template.md](assets/LOOP_CONTRACT.template.md) — Standalone production contract template with context promotion.
+- [ai_context templates](assets/ai_context/) — Templates for ADRs and Feature Context Notes.

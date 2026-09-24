@@ -35,6 +35,27 @@
       "prompt": "/loop-engineering We just finished our checkout idempotent payment loop and all 12 tests passed. Now wrap up the task and make sure future sessions remember our architecture decision on Redis distributed locks and the checkout gotchas.",
       "expected_output": "The skill triggers Step 5 (Promote AI Context), creates an ADR under .ai-context/decisions/ (e.g. 001-redis-distributed-lock.md) documenting Context, Decision, Alternatives Rejected, and Affected Files, and updates/creates .ai-context/features/checkout.md with component paths, flows, and retry/timeout gotchas.",
       "files": []
+    },
+    {
+      "id": 6,
+      "name": "scaffold-empty-folder-safety",
+      "prompt": "Test scaffold_loop.py execution in an empty directory without existing build files. Ensure verify_gate.py receives an instructive error placeholder and never invokes itself recursively.",
+      "expected_output": "scaffold_loop.py outputs a safe placeholder command, verify_gate.py contains self-referential guards, and executing verify_gate.py exits with error code 1 without infinite recursion.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "scaffold-verifier-quotes-escaping",
+      "prompt": "Run scaffold_loop.py with a verification command containing double quotes like --verifier 'pytest -k \"auth\"'. Ensure generated verify_gate.py has valid Python syntax and does not raise SyntaxError.",
+      "expected_output": "verify_gate.py has properly escaped string literals via json.dumps and compiles cleanly with python3 -m py_compile.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "name": "scaffold-non-destructive-without-force",
+      "prompt": "Run scaffold_loop.py twice on the same directory without the --force flag. Ensure existing files are preserved with '~ Skipped' messages rather than silently overwritten.",
+      "expected_output": "All pre-existing files are skipped unless --force is explicitly provided.",
+      "files": []
     }
   ]
 }

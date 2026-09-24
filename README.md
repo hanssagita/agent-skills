@@ -18,7 +18,10 @@ Install directly using the `skills` CLI:
 
 ```bash
 # Install loop-engineering-generator into your project
-npx skills add hanssagita/agent-skills/skills/loop-engineering-generator
+npx skills add hanssagita/agent-skills --skill loop-engineering-generator
+
+# or choose interactively from the repository:
+npx skills add hanssagita/agent-skills
 ```
 
 ### Slash Command / Invocation

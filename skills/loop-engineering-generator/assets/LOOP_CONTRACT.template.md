@@ -1,68 +1,85 @@
-# LOOP CONTRACT: [Task or Workflow Title]
+# LOOP CONTRACT: {title}
 
 > **Core Axiom:** Do not loop on confidence. Loop on evidence.
-> **Comprehension Debt Warning:** Keep changes minimal and surgical. Every line must trace to the explicit goal.
+> **Comprehension Debt Warning:** Keep diffs surgical. If the loop cannot verify progress automatically, stop and ask the human.
 
 ---
 
-## 1. Loop Metadata
+## 1. Loop Profile
 
-| Attribute | Specification |
+| Dimension | Specification |
 | :--- | :--- |
-| **Goal** | [Precise, objective goal statement] |
-| **Archetype** | `[code-tdd | refactor | research-doc | general]` |
-| **Max Iterations** | `[3 to 4]` (Hard ceiling) |
-| **Repo Standards** | `[Auto-detected from package.json/Cargo/etc. OR declared in greenfield interview]` |
-| **Target Files** | `[List of files allowed to be modified]` |
-| **Forbidden Actions** | [No unprompted refactoring, no editing config/lock files, no speculative features] |
+| **Archetype** | `{archetype}` |
+| **Goal** | {goal} |
+| **Trigger** | {trigger} |
+| **Max Iterations** | {max_iterations} (hard stop) |
+| **Detected Standards** | {detected_standards} |
+| **AI Context Memory** | `.ai-context/` (ADRs & Feature Notes) |
+| **Estimated Cost Gate** | Stop if tokens exceed allocated budget or 3 consecutive iterations fail same gate |
 
 ---
 
 ## 2. The 6 Building Blocks
 
-### 1. Automation (Trigger)
-- **Initiated by:** `[e.g., /loop-engineering run, git pre-commit, failing CI test]`
-- **Execution Mode:** Bounded discrete step loop.
+### 1. Automation (Heartbeat)
+- Initiated by: `{trigger}`
+- Cadence: Discrete step execution.
+- LLM / IDE: Agnostic (Compatible with Claude Code, Cursor, Antigravity, OpenCode, Windsurf, Cline, CLI).
 
 ### 2. Context (Hot & Warm State)
-- **Required reading before iteration:**
-  - `[Relevant test files, target source files, error logs]`
-  - Karpathy principles: Think before coding, surgical edits, simplicity first.
+- Read contract: `LOOP.md`
+- Durable AI Context: Inspect `.ai-context/decisions/` and `.ai-context/features/` for past gotchas and decisions.
+- Repository standards: Follow rules in `README.md`, `package.json`, `pyproject.toml`, `AGENTS.md` (if present).
+- Target files: Inspect specific workspace files before making changes.
+- Ground rules: Think before coding, surgical edits, simplicity first.
 
 ### 3. Action Policy (Boundaries)
-- Allowed actions: Edit only `[target file list]`.
-- Diff budget: Under `[e.g., 50]` lines changed per iteration.
-- Revert on regression: If an iteration breaks unrelated tests, revert immediately.
+- {action_policy}
+- Forbidden: Unprompted refactoring, editing lock files without reason, ignoring test failures.
 
-### 4. Verification Gate (The Checker)
-- **Primary Command:**
+### 4. Verification Gate (Checker)
+- **Primary Verifier:** `{verifier}`
+- Verification command:
   ```bash
-  [Command that exits 0 on success, non-zero on failure. e.g. pytest tests/test_feature.py]
+  {verifier_cmd}
   ```
-- **Secondary Checks:**
-  - Linter / type check clean.
-  - Diff check: `git diff --stat` confirms no out-of-scope files touched.
+- Pass condition: Clean exit code (0), zero regressions, zero unverified assumptions.
 
-### 5. State Persistence
-- Track progress in `loop_state.json` or git commit history.
-- Log schema: `{"iteration": N, "action": "...", "gate_result": "PASS/FAIL", "notes": "..."}`
+### 5. State Persistence & AI Context
+- Progress tracked in `loop_state.json` or git commit history.
+- Schema: `[iteration_number, changes_made, verifier_output, outcome]`
+- On completion: Learned context promoted to `.ai-context/`.
 
 ### 6. Stop Conditions
-- **SUCCESS STOP:** Primary verifier passes with code 0 + secondary checks clean.
-- **FAILURE STOP:** `[N]` iterations reached without passing verifier -> Escalate to human operator.
-- **CIRCUIT BREAKER:** Stop immediately if the same error repeats twice consecutively.
+- **SUCCESS STOP:** Primary verifier passes with zero warnings.
+- **FAILURE STOP:** `{max_iterations}` iterations reached without passing verifier.
+- **ESCALATION STOP:** Unrecoverable environment/harness error or contradictory requirements detected.
 
 ---
 
-## 3. Protocol (Plan → Do → Verify → Decide)
+## 3. Maker-Checker Execution Protocol
 
-1. **PLAN:** State the single next surgical action and the expected impact on the verifier gate.
-2. **DO:** Maker applies the edit. Touch only what is strictly necessary.
-3. **VERIFY:** Checker runs the objective verification command.
+1. **PLAN:** Explicitly state the single next step and what hypothesis it tests.
+2. **DO:** Maker applies surgical modification adhering to detected repository standards.
+3. **VERIFY:** Checker executes the objective verification command:
+   ```bash
+   {verifier_cmd}
+   ```
 4. **DECIDE:**
-   - If verifier passes: Proceed to Step 5.
-   - If verifier fails: Feed exact error back to next iteration. Increment counter. If counter >= Max Iterations, STOP.
+   - If verifier succeeds: Proceed to step 5.
+   - If verifier fails: Feed error back into context, increment iteration count, repeat until `{max_iterations}`.
 5. **PROMOTE CONTEXT (.ai-context/):**
-   - If architectural choice was made: write `.ai-context/decisions/NNN-<kebab-slug>.md`
-   - If feature code/gotchas discovered: update `.ai-context/features/<feature-slug>.md`
-   - Mark task COMPLETE and report verified diff + context documentation.
+   - **Architectural Decision (ADR):** If an architectural or design choice was made, record it in `.ai-context/decisions/NNN-<kebab-slug>.md`.
+   - **Feature Context Notes:** If feature code/structure was created or modified, update `.ai-context/features/<feature-slug>.md` with components, key flows, and gotchas.
+   - Mark task COMPLETE and summarize verified diff + updated context files.
+
+---
+
+## 4. Production Checklist (Before Launching Loop)
+
+- [ ] Has the repository stack been detected or grilled (language, test runner, package manager)?
+- [ ] Were existing `.ai-context/` notes and ADRs reviewed before starting?
+- [ ] Is "done" completely objective? (No subjective "looks good")
+- [ ] Can the agent run the verifier autonomously without human typing?
+- [ ] Is the failure stop condition strictly bounded (<= {max_iterations} iterations)?
+- [ ] Is the action surface restricted to only the necessary files?

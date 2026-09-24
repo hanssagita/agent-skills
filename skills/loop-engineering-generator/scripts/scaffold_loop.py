@@ -14,8 +14,12 @@ Principles:
 import argparse
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
+
+# Base directory for loading asset templates
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 
 TEMPLATES = {
     "code-tdd": {
@@ -60,7 +64,7 @@ TEMPLATES = {
     }
 }
 
-LOOP_MD_TEMPLATE = """# LOOP CONTRACT: {title}
+FALLBACK_LOOP_MD_TEMPLATE = """# LOOP CONTRACT: {title}
 
 > **Core Axiom:** Do not loop on confidence. Loop on evidence.
 > **Comprehension Debt Warning:** Keep diffs surgical. If the loop cannot verify progress automatically, stop and ask the human.
@@ -121,33 +125,6 @@ LOOP_MD_TEMPLATE = """# LOOP CONTRACT: {title}
 
 ## 3. Maker-Checker Execution Protocol
 
-```
-           ┌─────────────────────────────────────────┐
-           │        1. PLAN (State Next Step)         │
-           └────────────────────┬────────────────────┘
-                                │
-                   ┌────────────┴────────────┐
-                   │    2. DO (Maker Phase)   │
-                   │ (Minimal Surgical Edit) │
-                   └────────────┬────────────┘
-                                │
-                   ┌────────────┴────────────┐
-                   │  3. VERIFY (Checker)    │
-                   │ (Run Objective Gate)    │
-                   └────────────┬────────────┘
-                                │
-                   ┌────────────┴────────────┐
-                   │   4. DECIDE (Stop/Iter) │
-                   │ Passed? -> Step 5       │
-                   │ Failed? -> Log & Loop   │
-                   └────────────┬────────────┘
-                                │
-                   ┌────────────┴────────────┐
-                   │ 5. PROMOTE CONTEXT      │
-                   │ (.ai-context/ ADR & Doc)│
-                   └─────────────────────────┘
-```
-
 1. **PLAN:** Explicitly state the single next step and what hypothesis it tests.
 2. **DO:** Maker applies surgical modification adhering to detected repository standards.
 3. **VERIFY:** Checker executes the objective verification command:
@@ -174,7 +151,7 @@ LOOP_MD_TEMPLATE = """# LOOP CONTRACT: {title}
 - [ ] Is the action surface restricted to only the necessary files?
 """
 
-VERIFIER_SCRIPT_TEMPLATE = """#!/usr/bin/env python3
+FALLBACK_VERIFIER_TEMPLATE = """#!/usr/bin/env python3
 \"\"\"
 Objective Verification Gate for Loop
 Exits 0 on success, non-zero on failure.
@@ -182,14 +159,44 @@ Exits 0 on success, non-zero on failure.
 
 import subprocess
 import sys
+import os
+
+def check_diff_budget(max_lines=100):
+    \"\"\"Optional check ensuring uncommitted diffs remain surgical.\"\"\"
+    try:
+        res = subprocess.run("git diff --shortstat", shell=True, capture_output=True, text=True)
+        if res.returncode == 0 and res.stdout.strip():
+            import re
+            m_ins = re.search(r'(\\d+)\\s+insertions?\\(\\+\\)', res.stdout)
+            m_del = re.search(r'(\\d+)\\s+deletions?\\(-\\)', res.stdout)
+            ins = int(m_ins.group(1)) if m_ins else 0
+            dels = int(m_del.group(1)) if m_del else 0
+            total = ins + dels
+            if total > max_lines:
+                print(f"[FAIL] Diff budget exceeded: {{total}} lines changed (max: {{max_lines}}). Keep changes surgical!")
+                return False
+            print(f"[PASS] Diff budget check: {{total}}/{{max_lines}} lines changed.")
+    except Exception as e:
+        print(f"[WARN] Diff budget check skipped: {{e}}")
+    return True
 
 def run_check(cmd, description):
     print(f"[*] Checking: {{description}}...")
+    if not cmd or "TODO: Configure your verification command" in cmd:
+        print("[FAIL] No verification command configured! Please set a valid test command in scripts/verify_gate.py.")
+        return False
+
+    if "verify_gate.py" in cmd:
+        print("[FAIL] Self-referential command detected! verify_gate.py cannot invoke itself.")
+        return False
+
     res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if res.returncode != 0:
         print(f"[FAIL] {{description}} failed!")
-        print(res.stdout)
-        print(res.stderr)
+        if res.stdout:
+            print(res.stdout)
+        if res.stderr:
+            print(res.stderr)
         return False
     print(f"[PASS] {{description}} passed.")
     return True
@@ -197,7 +204,7 @@ def run_check(cmd, description):
 def main():
     # Verification checks tailored to project standards:
     checks = [
-        ("{verifier_cmd}", "Primary Verification Gate"),
+        ({verifier_cmd_repr}, "Primary Verification Gate"),
     ]
 
     for cmd, desc in checks:
@@ -211,24 +218,41 @@ if __name__ == "__main__":
     main()
 """
 
-RUNNER_SCRIPT_TEMPLATE = """#!/usr/bin/env bash
+FALLBACK_RUNNER_TEMPLATE = """#!/usr/bin/env bash
 set -euo pipefail
 
 # Closed Loop Execution Harness
+# Usage:
+#   ./scripts/run_loop.sh                (Interactive step mode: prompts between iterations)
+#   ./scripts/run_loop.sh "<command>"    (Automated worker mode: runs <command> each iteration before verifying)
+
 MAX_ITER={max_iterations}
-ITER=1
+STEP_CMD="${{1:-}}"
+VERIFIER_CMD={verifier_sh_cmd}
 
 echo "=================================================="
 echo " Starting Closed Loop: {title}"
 echo " Max Iterations: $MAX_ITER"
+if [ -n "$STEP_CMD" ]; then
+    echo " Step Command: $STEP_CMD"
+else
+    echo " Mode: Interactive (make changes between iterations)"
+fi
 echo "=================================================="
 
+ITER=1
 while [ "$ITER" -le "$MAX_ITER" ]; do
     echo ""
     echo ">>> Iteration $ITER of $MAX_ITER..."
 
-    # Check if verifier passes
-    if {verifier_cmd}; then
+    # If an automated step command was supplied, run it first
+    if [ -n "$STEP_CMD" ]; then
+        echo "[STEP] Executing: $STEP_CMD"
+        eval "$STEP_CMD" || true
+    fi
+
+    # Run the verification check
+    if eval "$VERIFIER_CMD"; then
         echo ""
         echo "[SUCCESS] Verifier passed on iteration $ITER! Exiting loop."
         exit 0
@@ -241,92 +265,46 @@ while [ "$ITER" -le "$MAX_ITER" ]; do
         exit 1
     fi
 
+    # In interactive mode, wait for user/agent edit
+    if [ -z "$STEP_CMD" ]; then
+        if [ -t 0 ]; then
+            echo ""
+            read -r -p "Apply surgical edit, then press [Enter] to run iteration $((ITER + 1)) (or Ctrl+C to abort)..."
+        else
+            echo "[INFO] Non-interactive execution without step command; stopping after single verification check."
+            exit 1
+        fi
+    fi
+
     ITER=$((ITER + 1))
 done
 """
 
-AI_CONTEXT_ROOT_README = """# AI Context & Durable Memory
+def load_template(filename: str, fallback: str) -> str:
+    """Loads a template file from assets/ if available, otherwise returns fallback string."""
+    template_path = ASSETS_DIR / filename
+    if template_path.exists():
+        try:
+            return template_path.read_text(encoding="utf-8")
+        except Exception:
+            pass
+    return fallback
 
-This directory stores durable architecture knowledge and feature context across development loops and agent sessions. It ensures that neither human engineers nor future AI agents suffer from amnesia.
-
-## Directory Layout
-- `decisions/`: Architecture Decision Records (ADRs) named `NNN-<kebab-slug>.md`.
-- `features/`: Feature context, key flows, and gotchas named `<feature-slug>.md`.
-
-## Lifecycle in Loops
-1. **Loop Start:** Read relevant files in `decisions/` and `features/` to absorb existing rules and past architectural decisions before taking action.
-2. **Loop Finish:** Promote new architectural decisions to `decisions/` and update or create feature notes in `features/`.
-"""
-
-AI_CONTEXT_DECISIONS_README = """# Architecture Decision Records (ADRs)
-
-This directory contains lightweight records of architectural decisions made during development loops.
-
-## Naming Formula
-`NNN-<kebab-slug>.md`
-- `NNN`: 3-digit zero-padded incremental number (e.g. `001-state-management.md`, `015-payment-webhook.md`).
-- `<kebab-slug>`: concise description of the decision.
-
-## Format & Template
-
-```markdown
-# ADR NNN: <short title>
-- Date: YYYY-MM-DD
-- Status: Accepted | Superseded | Rejected
-- RFC: docs/rfcs/<slug>.md   (or Lark/Wiki URL if applicable)
-- JIRA: CAS-xxxx, CAS-xxxx (if applicable)
-
-## Context
-<1–3 sentences: the problem / PRD driver / technical constraint>
-
-## Decision
-<chosen approach, 1–3 sentences>
-
-## Alternatives rejected
-- <approach> — <why not>
-
-## Affected files / modules
-- <path or module> — <what changes>
-```
-"""
-
-AI_CONTEXT_FEATURES_README = """# Feature Context Notes
-
-This directory maintains persistent domain knowledge, layout, conventions, and gotchas for features across the codebase.
-
-## Naming Formula
-`<feature-slug>.md`
-- Matches the feature domain or directory name (e.g. `auth.md`, `cash-loan.md`, `checkout.md`).
-- **Rule:** When modifying an existing feature, **update the existing file** rather than duplicating.
-
-## Format & Template
-
-```markdown
-# Feature: <name>
-<!-- Last updated: YYYY-MM-DD -->
-
-## Where it lives
-- Components: <path to UI components>
-- Hooks / models: <path to hooks/stores/models>
-- Routes: <page or endpoint routes>
-- Tests: <path to test suites>
-
-## Key flows
-- <flow name> — <entry point> → <outcome>
-
-## Conventions / gotchas
-- <thing future agents/developers must know: project gating, SWR keys, translation namespace, retry rules, auth checks, etc.>
-
-## Related decisions
-- [[NNN-<slug>]] — <one line summary linking to decision ADR>
-```
-"""
+def write_file(path: Path, content: str, force: bool = False) -> bool:
+    """Writes content to path, respecting force flag to avoid clobbering existing files."""
+    if path.exists() and not force:
+        print(f"  ~ Skipped {path} (already exists, use --force to overwrite)")
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    print(f"  + Created {path}")
+    return True
 
 def detect_repository_standards(target_dir: Path) -> dict:
     """Inspects workspace to detect language, package manager, test runner, and AI context."""
     standards = {
-        "stack": "unknown",
-        "default_test_cmd": "python3 scripts/verify_gate.py",
+        "stacks": [],
+        "default_test_cmd": None,
         "configs_found": []
     }
 
@@ -334,69 +312,88 @@ def detect_repository_standards(target_dir: Path) -> dict:
     ai_ctx = target_dir / ".ai-context"
     if ai_ctx.exists():
         standards["configs_found"].append(".ai-context/")
-        adrs = list((ai_ctx / "decisions").glob("*.md")) if (ai_ctx / "decisions").exists() else []
-        feats = list((ai_ctx / "features").glob("*.md")) if (ai_ctx / "features").exists() else []
-        adrs_clean = [f.name for f in adrs if f.name != "README.md"]
-        feats_clean = [f.name for f in feats if f.name != "README.md"]
+        adrs = [f.name for f in (ai_ctx / "decisions").glob("*.md")] if (ai_ctx / "decisions").exists() else []
+        feats = [f.name for f in (ai_ctx / "features").glob("*.md")] if (ai_ctx / "features").exists() else []
+        adrs_clean = [f for f in adrs if f != "README.md"]
+        feats_clean = [f for f in feats if f != "README.md"]
         if adrs_clean or feats_clean:
             standards["configs_found"].append(f"AI-Context({len(adrs_clean)} ADRs, {len(feats_clean)} Features)")
 
-    # JavaScript / TypeScript
+    # JavaScript / TypeScript detection
     pkg_json = target_dir / "package.json"
     if pkg_json.exists():
         standards["configs_found"].append("package.json")
+        is_ts = (target_dir / "tsconfig.json").exists()
+        lang = "TypeScript" if is_ts else "JavaScript"
+
+        # Detect package manager
+        if (target_dir / "pnpm-lock.yaml").exists():
+            pm = "pnpm"
+        elif (target_dir / "yarn.lock").exists():
+            pm = "yarn"
+        elif (target_dir / "bun.lockb").exists():
+            pm = "bun"
+        else:
+            pm = "npm"
+
+        has_test_script = False
         try:
             with open(pkg_json, "r", encoding="utf-8") as f:
                 data = json.load(f)
             scripts = data.get("scripts", {})
             if "test" in scripts:
-                if (target_dir / "pnpm-lock.yaml").exists():
-                    standards["stack"] = "TypeScript/Node (pnpm)"
-                    standards["default_test_cmd"] = "pnpm test"
-                elif (target_dir / "yarn.lock").exists():
-                    standards["stack"] = "TypeScript/Node (yarn)"
-                    standards["default_test_cmd"] = "yarn test"
-                else:
-                    standards["stack"] = "JavaScript/Node (npm)"
-                    standards["default_test_cmd"] = "npm test"
+                has_test_script = True
         except Exception:
             pass
 
-    # Python
+        stack_name = f"{lang}/Node ({pm})"
+        standards["stacks"].append(stack_name)
+        if has_test_script and not standards["default_test_cmd"]:
+            standards["default_test_cmd"] = f"{pm} test"
+
+    # Python detection
     pyproject = target_dir / "pyproject.toml"
     pytest_ini = target_dir / "pytest.ini"
     reqs = target_dir / "requirements.txt"
-    if pyproject.exists() or pytest_ini.exists() or reqs.exists():
-        standards["stack"] = "Python"
-        standards["default_test_cmd"] = "pytest"
+    setup_py = target_dir / "setup.py"
+    if pyproject.exists() or pytest_ini.exists() or reqs.exists() or setup_py.exists():
+        standards["stacks"].append("Python")
+        if not standards["default_test_cmd"]:
+            standards["default_test_cmd"] = "pytest"
         if pyproject.exists():
             standards["configs_found"].append("pyproject.toml")
         if pytest_ini.exists():
             standards["configs_found"].append("pytest.ini")
+        if reqs.exists():
+            standards["configs_found"].append("requirements.txt")
 
     # Rust
     cargo = target_dir / "Cargo.toml"
     if cargo.exists():
-        standards["stack"] = "Rust (cargo)"
-        standards["default_test_cmd"] = "cargo test"
+        standards["stacks"].append("Rust (cargo)")
         standards["configs_found"].append("Cargo.toml")
+        if not standards["default_test_cmd"]:
+            standards["default_test_cmd"] = "cargo test"
 
     # Go
     gomod = target_dir / "go.mod"
     if gomod.exists():
-        standards["stack"] = "Go"
-        standards["default_test_cmd"] = "go test ./..."
+        standards["stacks"].append("Go")
         standards["configs_found"].append("go.mod")
+        if not standards["default_test_cmd"]:
+            standards["default_test_cmd"] = "go test ./..."
 
     # Java / Maven / Gradle
     if (target_dir / "pom.xml").exists():
-        standards["stack"] = "Java (Maven)"
-        standards["default_test_cmd"] = "mvn test"
+        standards["stacks"].append("Java (Maven)")
         standards["configs_found"].append("pom.xml")
+        if not standards["default_test_cmd"]:
+            standards["default_test_cmd"] = "mvn test"
     elif (target_dir / "build.gradle").exists() or (target_dir / "build.gradle.kts").exists():
-        standards["stack"] = "Java/Kotlin (Gradle)"
-        standards["default_test_cmd"] = "./gradlew test"
+        standards["stacks"].append("Java/Kotlin (Gradle)")
         standards["configs_found"].append("build.gradle")
+        if not standards["default_test_cmd"]:
+            standards["default_test_cmd"] = "./gradlew test"
 
     # Agent / Project Guides
     for guide in ["README.md", "AGENTS.md", "CLAUDE.md", ".cursorrules"]:
@@ -405,31 +402,19 @@ def detect_repository_standards(target_dir: Path) -> dict:
 
     return standards
 
-def scaffold_ai_context(target_dir: Path):
-    """Scaffolds .ai-context structure with guides and templates."""
+def scaffold_ai_context(target_dir: Path, force: bool = False):
+    """Scaffolds .ai-context structure with guides and templates loaded from assets."""
     ai_ctx_dir = target_dir / ".ai-context"
-    decisions_dir = ai_ctx_dir / "decisions"
-    features_dir = ai_ctx_dir / "features"
 
-    decisions_dir.mkdir(parents=True, exist_ok=True)
-    features_dir.mkdir(parents=True, exist_ok=True)
+    root_template = load_template("ai_context/root_readme.template.md", "# AI Context\n")
+    decisions_template = load_template("ai_context/decisions_readme.template.md", "# ADRs\n")
+    features_template = load_template("ai_context/features_readme.template.md", "# Features\n")
 
-    root_readme = ai_ctx_dir / "README.md"
-    if not root_readme.exists():
-        root_readme.write_text(AI_CONTEXT_ROOT_README, encoding="utf-8")
-        print(f"  + Created {root_readme}")
+    write_file(ai_ctx_dir / "README.md", root_template, force=force)
+    write_file(ai_ctx_dir / "decisions" / "README.md", decisions_template, force=force)
+    write_file(ai_ctx_dir / "features" / "README.md", features_template, force=force)
 
-    decisions_readme = decisions_dir / "README.md"
-    if not decisions_readme.exists():
-        decisions_readme.write_text(AI_CONTEXT_DECISIONS_README, encoding="utf-8")
-        print(f"  + Created {decisions_readme}")
-
-    features_readme = features_dir / "README.md"
-    if not features_readme.exists():
-        features_readme.write_text(AI_CONTEXT_FEATURES_README, encoding="utf-8")
-        print(f"  + Created {features_readme}")
-
-def scaffold(output_dir: Path, archetype: str, goal: str = None, verifier_cmd: str = None, with_ai_context: bool = True):
+def scaffold(output_dir: Path, archetype: str, goal: str = None, verifier_cmd: str = None, with_ai_context: bool = True, force: bool = False):
     output_dir.mkdir(parents=True, exist_ok=True)
     spec = TEMPLATES.get(archetype, TEMPLATES["general"])
 
@@ -439,17 +424,27 @@ def scaffold(output_dir: Path, archetype: str, goal: str = None, verifier_cmd: s
         detected = detect_repository_standards(Path.cwd())
 
     actual_goal = goal if goal else spec["goal"]
-    
+
+    # Prevent self-referential / infinite loops:
+    # If no verifier specified and no stack detected, use an instructive placeholder error command
     if verifier_cmd:
         actual_verifier_cmd = verifier_cmd
-    elif detected["stack"] != "unknown":
+    elif detected["default_test_cmd"]:
         actual_verifier_cmd = detected["default_test_cmd"]
     else:
-        actual_verifier_cmd = "python3 scripts/verify_gate.py"
+        actual_verifier_cmd = 'echo "TODO: Configure your verification command in scripts/verify_gate.py" && exit 1'
 
-    detected_summary = f"{detected['stack']} (found: {', '.join(detected['configs_found']) if detected['configs_found'] else 'none'})"
+    # Safe escaping for code templates:
+    # verifier_cmd_repr is a valid Python string literal escaping quotes and backslashes
+    verifier_cmd_repr = json.dumps(actual_verifier_cmd)
+    # verifier_sh_cmd is safely quoted for bash execution
+    verifier_sh_cmd = shlex.quote(actual_verifier_cmd)
 
-    loop_md = LOOP_MD_TEMPLATE.format(
+    stacks_str = ", ".join(detected["stacks"]) if detected["stacks"] else "unknown"
+    detected_summary = f"{stacks_str} (found: {', '.join(detected['configs_found']) if detected['configs_found'] else 'none'})"
+
+    loop_md_template = load_template("LOOP_CONTRACT.template.md", FALLBACK_LOOP_MD_TEMPLATE)
+    loop_md = loop_md_template.format(
         archetype=archetype,
         title=spec["title"],
         goal=actual_goal,
@@ -462,32 +457,37 @@ def scaffold(output_dir: Path, archetype: str, goal: str = None, verifier_cmd: s
     )
 
     loop_md_path = output_dir / "LOOP.md"
-    loop_md_path.write_text(loop_md, encoding="utf-8")
-    print(f"  + Created {loop_md_path} (Detected: {detected_summary})")
+    write_file(loop_md_path, loop_md, force=force)
 
     scripts_dir = output_dir / "scripts"
     scripts_dir.mkdir(exist_ok=True)
 
+    verifier_template = load_template("verify_gate.template.py", FALLBACK_VERIFIER_TEMPLATE)
+    verifier_content = verifier_template.format(verifier_cmd_repr=verifier_cmd_repr)
     verifier_path = scripts_dir / "verify_gate.py"
-    verifier_content = VERIFIER_SCRIPT_TEMPLATE.format(verifier_cmd=actual_verifier_cmd)
-    verifier_path.write_text(verifier_content, encoding="utf-8")
-    verifier_path.chmod(0o755)
-    print(f"  + Created {verifier_path}")
+    if write_file(verifier_path, verifier_content, force=force):
+        try:
+            verifier_path.chmod(0o755)
+        except Exception:
+            pass
 
-    runner_path = scripts_dir / "run_loop.sh"
-    runner_content = RUNNER_SCRIPT_TEMPLATE.format(
+    runner_template = load_template("run_loop.template.sh", FALLBACK_RUNNER_TEMPLATE)
+    runner_content = runner_template.format(
         title=spec["title"],
         max_iterations=spec["max_iterations"],
-        verifier_cmd=actual_verifier_cmd
+        verifier_sh_cmd=verifier_sh_cmd
     )
-    runner_path.write_text(runner_content, encoding="utf-8")
-    runner_path.chmod(0o755)
-    print(f"  + Created {runner_path}")
+    runner_path = scripts_dir / "run_loop.sh"
+    if write_file(runner_path, runner_content, force=force):
+        try:
+            runner_path.chmod(0o755)
+        except Exception:
+            pass
 
     if with_ai_context:
-        scaffold_ai_context(output_dir)
+        scaffold_ai_context(output_dir, force=force)
 
-    print("\n[OK] Loop contract, execution scaffolding, and .ai-context successfully created.")
+    print("\n[OK] Scaffolding process complete.")
     print(f"Review your contract: {loop_md_path}")
 
 def main():
@@ -497,6 +497,7 @@ def main():
     parser.add_argument("--verifier", type=str, help="Verification command (e.g. 'pytest', 'pnpm test')")
     parser.add_argument("--output", type=str, default=".", help="Directory where files will be created")
     parser.add_argument("--no-ai-context", action="store_true", help="Skip creating .ai-context/ directory")
+    parser.add_argument("--force", "-f", action="store_true", help="Force overwrite existing files")
 
     args = parser.parse_args()
     scaffold(
@@ -504,7 +505,8 @@ def main():
         archetype=args.type,
         goal=args.goal,
         verifier_cmd=args.verifier,
-        with_ai_context=not args.no_ai_context
+        with_ai_context=not args.no_ai_context,
+        force=args.force
     )
 
 if __name__ == "__main__":

@@ -176,12 +176,12 @@ The `.ai-context/` directory acts as the **Review Boundary** and persistent memo
 
 ### 2. Feature Context Notes
 - **Path:** `.ai-context/features/`
-- **Naming Formula:** `<feature-slug>.md` (e.g. `auth.md`, `cash-loan.md`, `checkout.md`).
+- **Naming Formula:** `<feature-slug>.md` (e.g. `auth.md`, `billing.md`, `checkout.md`).
 - **Update Rule:** Never create duplicates; update the existing feature file as code evolves.
 - **Core Elements:**
   - `Where it lives`: Components, hooks, models, routes, tests.
   - `Key flows`: Entry point → outcome mapping.
-  - `Conventions / gotchas`: Project gating, SWR keys, translation namespaces, retry policies.
+  - `Conventions / gotchas`: Project gating, cache keys, translation namespaces, retry policies.
   - `Related decisions`: `[[NNN-<slug>]]` links to ADRs.
 
 ### 3. Closed Memory Loop
