@@ -75,6 +75,35 @@ class ScaffoldLoopTest(unittest.TestCase):
         self.assertEqual(res.returncode, 1)
         self.assertIn("Diff budget exceeded", res.stdout)
 
+    def test_creates_agents_md_and_skills_automatically(self):
+        scaffold(self.dir, "--verifier", "pytest")
+        agents_md = self.dir / "AGENTS.md"
+        self.assertTrue(agents_md.exists())
+        self.assertIn("Loop Engineering Protocol", agents_md.read_text())
+        self.assertIn("pytest", agents_md.read_text())
+
+        agent_skill = self.dir / ".agents" / "skills" / "loop-engineering" / "SKILL.md"
+        claude_skill = self.dir / ".claude" / "skills" / "loop-engineering" / "SKILL.md"
+        self.assertTrue(agent_skill.exists())
+        self.assertTrue(claude_skill.exists())
+        self.assertIn("name: loop-engineering", agent_skill.read_text())
+        self.assertIn("pytest", agent_skill.read_text())
+
+    def test_appends_protocol_to_existing_agents_md(self):
+        existing_agents = self.dir / "AGENTS.md"
+        existing_agents.write_text("# Existing Project Guidelines\n- Rule 1: Clean architecture\n")
+        scaffold(self.dir, "--verifier", "cargo test")
+        content = existing_agents.read_text()
+        self.assertIn("Existing Project Guidelines", content)
+        self.assertIn("Loop Engineering Protocol", content)
+        self.assertIn("cargo test", content)
+
+    def test_flags_can_skip_agents_md_and_skill(self):
+        scaffold(self.dir, "--no-agents-md", "--no-skill")
+        self.assertFalse((self.dir / "AGENTS.md").exists())
+        self.assertFalse((self.dir / ".agents" / "skills" / "loop-engineering").exists())
+        self.assertFalse((self.dir / ".claude" / "skills" / "loop-engineering").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

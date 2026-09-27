@@ -196,6 +196,8 @@ python3 scripts/scaffold_loop.py --type [code-tdd|refactor|research-doc|general]
 The tool auto-detects existing repository standards (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.) and sets the verifier command to match the native test runner. It also safely skips existing files unless `--force` is passed.
 
 This generates:
+- `AGENTS.md`: Universal operating manual with the `/loop-engineering` protocol, coding discipline, and safety gates (automatically created if missing, or appended with protocol if present).
+- `.agents/skills/loop-engineering/` & `.claude/skills/loop-engineering/`: The `/loop-engineering` execution skill automatically provisioned so `/loop-engineering` is ready to use immediately across all IDEs (Antigravity, Claude Code, Cursor, OpenCode, Windsurf).
 - `LOOP.md`: Complete loop contract with boundaries, gates, and AI context promotion steps.
 - `scripts/verify_gate.py`: Objective Python test harness that exits 0 on success.
 - `scripts/run_loop.sh`: Bounded execution runner supporting both interactive step pauses and automated commands.
@@ -266,6 +268,8 @@ Before letting any loop run unattended, verify:
 
 - [architecture.md](references/architecture.md) — Comprehensive 4-layer taxonomy, evidence gates, and `.ai-context/` durable memory architecture.
 - [failure-modes.md](references/failure-modes.md) — Anti-patterns including amnesiac completion and tooling mismatch.
-- [scaffold_loop.py](scripts/scaffold_loop.py) — Zero-dependency scaffolding utility with `.ai-context/` generation.
+- [scaffold_loop.py](scripts/scaffold_loop.py) — Zero-dependency scaffolding utility with auto-generated `AGENTS.md`, `.agents/skills/loop-engineering/`, and `.ai-context/`.
+- [AGENTS.template.md](assets/AGENTS.template.md) — Universal operating manual template with `/loop-engineering` protocol.
+- [SKILL_LOOP_ENGINEERING.template.md](assets/SKILL_LOOP_ENGINEERING.template.md) — Template for the target project's `/loop-engineering` skill.
 - [LOOP_CONTRACT.template.md](assets/LOOP_CONTRACT.template.md) — Standalone production contract template with context promotion.
 - [ai_context templates](assets/ai_context/) — Templates for ADRs and Feature Context Notes.

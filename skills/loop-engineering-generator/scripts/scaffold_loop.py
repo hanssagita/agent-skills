@@ -193,7 +193,67 @@ def scaffold_ai_context(target_dir: Path, force: bool = False):
     write_file(ai_ctx_dir / "decisions" / "README.md", decisions_template, force=force)
     write_file(ai_ctx_dir / "features" / "README.md", features_template, force=force)
 
-def scaffold(output_dir: Path, archetype: str, goal: str = None, verifier_cmd: str = None, with_ai_context: bool = True, force: bool = False):
+def is_self_generator_repo(target_dir: Path) -> bool:
+    """Checks if target_dir is the loop-engineering-generator skill repository itself."""
+    return (target_dir / "skills" / "loop-engineering-generator" / "SKILL.md").exists()
+
+def scaffold_agents_md(output_dir: Path, detected_summary: str, verifier_cmd: str, max_iterations: int, force: bool = False):
+    """
+    Creates or updates AGENTS.md in the target project with loop engineering protocol
+    and durable context memory guidelines.
+    """
+    agents_path = output_dir / "AGENTS.md"
+    template_content = load_template("AGENTS.template.md").format(
+        verifier_cmd=verifier_cmd,
+        max_iterations=max_iterations,
+        detected_standards=detected_summary
+    )
+
+    if not agents_path.exists():
+        write_file(agents_path, template_content, force=force)
+    else:
+        existing_content = agents_path.read_text(encoding="utf-8")
+        marker = "## 🔁 Loop Engineering Protocol"
+        if marker not in existing_content:
+            parts = template_content.split(marker, 1)
+            protocol_section = "\n\n---\n\n" + marker + parts[1] if len(parts) > 1 else "\n\n" + template_content
+            agents_path.write_text(existing_content.rstrip() + protocol_section, encoding="utf-8")
+            print(f"  + Appended Loop Engineering Protocol to existing {agents_path}")
+        else:
+            print(f"  ~ Skipped {agents_path} (Loop Engineering Protocol already present)")
+
+def scaffold_loop_skill(output_dir: Path, detected_summary: str, verifier_cmd: str, max_iterations: int, force: bool = False):
+    """
+    Installs the loop-engineering execution skill into the target project's
+    .agents/skills and .claude/skills so /loop-engineering works immediately across all IDEs.
+    """
+    if is_self_generator_repo(output_dir):
+        return
+
+    skill_template = load_template("SKILL_LOOP_ENGINEERING.template.md").format(
+        verifier_cmd=verifier_cmd,
+        max_iterations=max_iterations,
+        detected_standards=detected_summary
+    )
+
+    # 1. Antigravity & Universal Agents (.agents/skills/loop-engineering)
+    agents_skill_dir = output_dir / ".agents" / "skills" / "loop-engineering"
+    write_file(agents_skill_dir / "SKILL.md", skill_template, force=force)
+
+    # 2. Claude Code (.claude/skills/loop-engineering)
+    claude_skill_dir = output_dir / ".claude" / "skills" / "loop-engineering"
+    write_file(claude_skill_dir / "SKILL.md", skill_template, force=force)
+
+def scaffold(
+    output_dir: Path,
+    archetype: str,
+    goal: str = None,
+    verifier_cmd: str = None,
+    with_ai_context: bool = True,
+    with_agents_md: bool = True,
+    with_skill: bool = True,
+    force: bool = False
+):
     output_dir.mkdir(parents=True, exist_ok=True)
     spec = TEMPLATES.get(archetype, TEMPLATES["general"])
 
@@ -266,8 +326,19 @@ def scaffold(output_dir: Path, archetype: str, goal: str = None, verifier_cmd: s
     if with_ai_context:
         scaffold_ai_context(output_dir, force=force)
 
+    if with_agents_md:
+        scaffold_agents_md(output_dir, detected_summary, actual_verifier_cmd, spec["max_iterations"], force=force)
+
+    if with_skill:
+        scaffold_loop_skill(output_dir, detected_summary, actual_verifier_cmd, spec["max_iterations"], force=force)
+
     print("\n[OK] Scaffolding process complete.")
     print(f"Review your contract: {loop_md_path}")
+    if with_agents_md:
+        print(f"Agent operating manual: {output_dir / 'AGENTS.md'}")
+    if with_skill and not is_self_generator_repo(output_dir):
+        print(f"Loop Engineering skill installed at: {output_dir / '.agents' / 'skills' / 'loop-engineering'}")
+        print("Ready to use `/loop-engineering` in your IDE!")
 
 def main():
     parser = argparse.ArgumentParser(description="Scaffold an autonomous closed loop contract adhering to project standards and AI context memory.")
@@ -276,6 +347,8 @@ def main():
     parser.add_argument("--verifier", type=str, help="Verification command (e.g. 'pytest', 'pnpm test')")
     parser.add_argument("--output", type=str, default=".", help="Directory where files will be created")
     parser.add_argument("--no-ai-context", action="store_true", help="Skip creating .ai-context/ directory")
+    parser.add_argument("--no-agents-md", action="store_true", help="Skip creating or updating AGENTS.md")
+    parser.add_argument("--no-skill", action="store_true", help="Skip installing loop-engineering skill into .agents and .claude")
     parser.add_argument("--force", "-f", action="store_true", help="Force overwrite existing files")
 
     args = parser.parse_args()
@@ -285,6 +358,8 @@ def main():
         goal=args.goal,
         verifier_cmd=args.verifier,
         with_ai_context=not args.no_ai_context,
+        with_agents_md=not args.no_agents_md,
+        with_skill=not args.no_skill,
         force=args.force
     )
 

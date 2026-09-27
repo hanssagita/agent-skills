@@ -56,6 +56,13 @@
       "prompt": "Run scaffold_loop.py twice on the same directory without the --force flag. Ensure existing files are preserved with '~ Skipped' messages rather than silently overwritten.",
       "expected_output": "All pre-existing files are skipped unless --force is explicitly provided.",
       "files": []
+    },
+    {
+      "id": 9,
+      "name": "scaffold-agents-md-and-skill-provisioning",
+      "prompt": "Run scaffold_loop.py in a target project directory. Verify that AGENTS.md is automatically created with the Loop Engineering protocol and that .agents/skills/loop-engineering/SKILL.md is provisioned so /loop-engineering works immediately.",
+      "expected_output": "scaffold_loop.py automatically creates AGENTS.md (or appends protocol if existing) and writes the loop-engineering execution skill into .agents/skills/loop-engineering and .claude/skills/loop-engineering so slash commands work out-of-the-box.",
+      "files": []
     }
   ]
 }

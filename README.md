@@ -36,11 +36,11 @@ Once installed, trigger the skill via:
 
 ## ⚡ Operational Modes
 
-1. **Scaffold Mode:** Generate production contracts (`LOOP.md`), test runners, and objective gates.
+1. **Scaffold Mode:** Automatically scaffold production contracts (`LOOP.md`), project operating manual (`AGENTS.md`), target project skill (`.agents/skills/loop-engineering`), and objective gates:
    ```bash
    python3 skills/loop-engineering-generator/scripts/scaffold_loop.py --type code-tdd --goal "Fix webhook auth"
    ```
-   *Auto-detects existing repository standards (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.) and sets the verifier command to match the native test runner.*
+   *Auto-detects repository standards (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.), sets the verifier command to match the native test runner, writes `AGENTS.md` if missing (or appends protocol if present), and provisions `.agents/skills/loop-engineering` so `/loop-engineering` works immediately across all IDEs.*
 
 2. **In-Session Execution Mode:** Follows the closed **Plan → Do → Verify → Decide → Promote Context** loop:
    - **Plan:** State single next surgical action and test hypothesis.
