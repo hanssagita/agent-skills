@@ -98,6 +98,35 @@ class ScaffoldLoopTest(unittest.TestCase):
         self.assertIn("Loop Engineering Protocol", content)
         self.assertIn("cargo test", content)
 
+    def test_diff_budget_blocks_untracked_files(self):
+        for cmd in (["git", "init", "-q"], ["git", "config", "user.email", "t@t"], ["git", "config", "user.name", "t"]):
+            run(self.dir, *cmd)
+        (self.dir / "initial.txt").write_text("hello\n")
+        run(self.dir, "git", "add", ".")
+        run(self.dir, "git", "commit", "-qm", "init")
+        scaffold(self.dir, "--verifier", "true")
+        (self.dir / "src").mkdir(parents=True, exist_ok=True)
+        (self.dir / "src" / "untracked_bloat.py").write_text("\n".join(f"# line {i}" for i in range(60)) + "\n")
+        res = run(self.dir, sys.executable, "scripts/verify_gate.py")
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("Diff budget exceeded", res.stdout)
+        self.assertIn("untracked", res.stdout)
+
+    def test_uv_and_poetry_detection(self):
+        (self.dir / "pyproject.toml").touch()
+        (self.dir / "uv.lock").touch()
+        scaffold(self.dir)
+        self.assertIn('"uv run pytest"', (self.dir / "scripts/verify_gate.py").read_text())
+
+    def test_force_updates_agents_md_protocol_preserving_custom_header(self):
+        existing_agents = self.dir / "AGENTS.md"
+        existing_agents.write_text("# Custom Org Rules\n- Be excellent\n\n---\n\n## 🔁 Loop Engineering Protocol (`/loop-engineering`)\nOld protocol\n")
+        scaffold(self.dir, "--verifier", "pnpm test", "--force")
+        content = existing_agents.read_text()
+        self.assertIn("Custom Org Rules", content)
+        self.assertIn("pnpm test", content)
+        self.assertNotIn("Old protocol", content)
+
     def test_flags_can_skip_agents_md_and_skill(self):
         scaffold(self.dir, "--no-agents-md", "--no-skill")
         self.assertFalse((self.dir / "AGENTS.md").exists())

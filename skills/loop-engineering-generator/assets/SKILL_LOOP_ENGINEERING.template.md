@@ -67,7 +67,7 @@ For each iteration:
 - **Verify:** Run the verification gate:
    ```bash
    python3 scripts/verify_gate.py
-   # or run the native verifier directly:
+   # or run the native verifier directly (use targeted tests during inner loops for speed):
    {verifier_cmd}
    ```
 - **Decide:**
@@ -77,6 +77,6 @@ For each iteration:
 
 ### Step 3: Promote AI Context (`.ai-context/`)
 Once verification passes:
-1. **Architecture Decision Records:** If a structural or architectural decision was made, document it in `.ai-context/decisions/NNN-<slug>.md` using the ADR schema.
+1. **Architecture Decision Records:** Document in `.ai-context/decisions/NNN-<slug>.md` **only** if a non-trivial architectural or structural decision was made (avoid ADR fatigue for simple bugfixes).
 2. **Feature Context Notes:** If feature logic or flows were changed, update or create `.ai-context/features/<slug>.md`.
 3. Report a clear summary of verified changes, test results, and promoted context notes.

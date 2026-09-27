@@ -135,10 +135,36 @@ def detect_repository_standards(target_dir: Path) -> dict:
     pytest_ini = target_dir / "pytest.ini"
     reqs = target_dir / "requirements.txt"
     setup_py = target_dir / "setup.py"
-    if pyproject.exists() or pytest_ini.exists() or reqs.exists() or setup_py.exists():
-        standards["stacks"].append("Python")
+    uv_lock = target_dir / "uv.lock"
+    poetry_lock = target_dir / "poetry.lock"
+    pipfile = target_dir / "Pipfile"
+    pixi_lock = target_dir / "pixi.lock"
+
+    if (pyproject.exists() or pytest_ini.exists() or reqs.exists() or setup_py.exists()
+            or uv_lock.exists() or poetry_lock.exists() or pipfile.exists() or pixi_lock.exists()):
+        py_runner = "pytest"
+        pm_name = None
+        if uv_lock.exists():
+            py_runner = "uv run pytest"
+            pm_name = "uv"
+            standards["configs_found"].append("uv.lock")
+        elif poetry_lock.exists():
+            py_runner = "poetry run pytest"
+            pm_name = "poetry"
+            standards["configs_found"].append("poetry.lock")
+        elif pipfile.exists():
+            py_runner = "pipenv run pytest"
+            pm_name = "pipenv"
+            standards["configs_found"].append("Pipfile")
+        elif pixi_lock.exists():
+            py_runner = "pixi run pytest"
+            pm_name = "pixi"
+            standards["configs_found"].append("pixi.lock")
+
+        stack_label = f"Python ({pm_name})" if pm_name else "Python"
+        standards["stacks"].append(stack_label)
         if not standards["default_test_cmd"]:
-            standards["default_test_cmd"] = "pytest"
+            standards["default_test_cmd"] = py_runner
         if pyproject.exists():
             standards["configs_found"].append("pyproject.toml")
         if pytest_ini.exists():
@@ -219,8 +245,19 @@ def scaffold_agents_md(output_dir: Path, detected_summary: str, verifier_cmd: st
             protocol_section = "\n\n---\n\n" + marker + parts[1] if len(parts) > 1 else "\n\n" + template_content
             agents_path.write_text(existing_content.rstrip() + protocol_section, encoding="utf-8")
             print(f"  + Appended Loop Engineering Protocol to existing {agents_path}")
+        elif force:
+            parts_existing = existing_content.split(marker, 1)
+            parts_template = template_content.split(marker, 1)
+            if len(parts_existing) > 1 and len(parts_template) > 1:
+                updated_content = parts_existing[0].rstrip() + "\n\n---\n\n" + marker + parts_template[1]
+                agents_path.write_text(updated_content, encoding="utf-8")
+                print(f"  + Updated Loop Engineering Protocol in existing {agents_path}")
+            else:
+                agents_path.write_text(template_content, encoding="utf-8")
+                print(f"  + Overwrote {agents_path} with updated template")
         else:
-            print(f"  ~ Skipped {agents_path} (Loop Engineering Protocol already present)")
+            print(f"  ~ Skipped {agents_path} (Loop Engineering Protocol already present, use --force to update)")
+
 
 def scaffold_loop_skill(output_dir: Path, detected_summary: str, verifier_cmd: str, max_iterations: int, force: bool = False):
     """

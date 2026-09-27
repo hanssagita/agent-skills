@@ -23,12 +23,13 @@ Follow this disciplined five-step protocol:
    {verifier_cmd}
    ```
    **Core Axiom: Do not loop on confidence. Loop on evidence.** Never self-declare success. Only proceed when the verification command exits cleanly with code 0.
+   *(Tip: In large repos, run targeted tests like `pytest tests/unit/test_foo.py` during inner iterations to avoid slow runs, and run full suite before completion).*
 4. **DECIDE:**
    - If verifier passes: Proceed to Step 5.
    - If verifier fails: Feed the exact error into context, increment iteration count, and retry (strictly bounded to {max_iterations} iterations).
 5. **PROMOTE AI CONTEXT (.ai-context/):**
-   - If an architectural choice was made: record in `.ai-context/decisions/NNN-<kebab-slug>.md`.
-   - If feature logic was modified: update `.ai-context/features/<feature-slug>.md`.
+   - **ADRs (Decisions):** Record in `.ai-context/decisions/NNN-<kebab-slug>.md` **only** if an architectural or structural choice was made (avoid ADR fatigue for trivial bugfixes).
+   - **Feature Notes:** If feature logic or flows were touched: update `.ai-context/features/<feature-slug>.md`.
    - Summarize verified diffs and context updates, then mark complete.
 
 ---
@@ -36,8 +37,10 @@ Follow this disciplined five-step protocol:
 ## 🧠 Durable AI Context Memory (`.ai-context/`)
 
 - **Architecture Decision Records (ADRs):** `.ai-context/decisions/NNN-<kebab-slug>.md`
+  - Purpose: Record non-trivial architecture decisions and rejected alternatives.
   - Format: Context, Decision, Alternatives Rejected, Affected Files.
 - **Feature Context Notes:** `.ai-context/features/<feature-slug>.md`
+  - Purpose: Living documentation of system components, entry points, and domain gotchas.
   - Format: Where it lives, Key flows, Conventions/gotchas, Related decisions.
   - *Rule: Update existing feature notes rather than creating duplicates.*
 
@@ -49,4 +52,5 @@ Follow this disciplined five-step protocol:
 2. **Simplicity First:** Write the minimum code necessary to satisfy the verifier gate.
 3. **Surgical Diffs:** Touch only files relevant to the active goal. Do not modify adjacent formatting or comments.
 4. **Hard Iteration Ceilings:** Never exceed {max_iterations} iterations. If tests fail repeatedly, halt and escalate to human review.
-5. **Repository Standards:** Respect detected project conventions: `{detected_standards}`.
+5. **Targeted Verification:** Scope verification commands to affected test suites to prevent token waste and slow loops.
+6. **Repository Standards:** Respect detected project conventions: `{detected_standards}`.

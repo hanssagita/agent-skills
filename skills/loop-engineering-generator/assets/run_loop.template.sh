@@ -6,6 +6,9 @@ set -euo pipefail
 #   ./scripts/run_loop.sh                (Interactive step mode: prompts between iterations)
 #   ./scripts/run_loop.sh "<command>"    (Automated worker mode: runs <command> each iteration before verifying)
 
+cd "$(dirname "$0")/.."
+
+
 MAX_ITER={max_iterations}
 STEP_CMD="${{1:-}}"
 VERIFIER_CMD={verifier_sh_cmd}

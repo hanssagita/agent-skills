@@ -7,21 +7,54 @@ Exits 0 on success, non-zero on failure.
 import subprocess
 import sys
 import os
+from pathlib import Path
+
+# Anchor execution to project root directory
+os.chdir(Path(__file__).resolve().parent.parent)
+
 
 def check_diff_budget(max_lines):
-    """Fails when the uncommitted git diff exceeds the surgical-change budget."""
+    """Fails when uncommitted, staged, or untracked changes exceed the surgical-change budget."""
     try:
-        res = subprocess.run("git diff --shortstat", shell=True, capture_output=True, text=True)
+        # Check diff against HEAD scoped to current directory (captures staged & unstaged changes)
+        res = subprocess.run("git diff HEAD --shortstat .", shell=True, capture_output=True, text=True)
+        if res.returncode != 0:
+            # Fallback if HEAD does not exist yet (e.g. freshly initialized repo before initial commit)
+            res = subprocess.run("git diff --shortstat .", shell=True, capture_output=True, text=True)
+
+        ins = 0
+        dels = 0
         if res.returncode == 0 and res.stdout.strip():
             import re
             m_ins = re.search(r'(\d+)\s+insertions?\(\+\)', res.stdout)
             m_del = re.search(r'(\d+)\s+deletions?\(-\)', res.stdout)
             ins = int(m_ins.group(1)) if m_ins else 0
             dels = int(m_del.group(1)) if m_del else 0
-            total = ins + dels
-            if total > max_lines:
-                print(f"[FAIL] Diff budget exceeded: {{total}} lines changed (max: {{max_lines}}). Keep changes surgical!")
-                return False
+
+        # Also inspect untracked files (excluding loop harness and context scaffolding)
+        untracked_lines = 0
+        res_untracked = subprocess.run("git status --porcelain -u .", shell=True, capture_output=True, text=True)
+        if res_untracked.returncode == 0 and res_untracked.stdout.strip():
+            harness_prefixes = ("LOOP.md", "AGENTS.md", "loop_state.json", ".ai-context/", ".agents/", ".claude/", "scripts/")
+            for line in res_untracked.stdout.strip().splitlines():
+                if line.startswith("?? "):
+                    rel_path = line[3:].strip().strip('"')
+                    norm_path = rel_path.lstrip("./")
+                    if any(norm_path == p or norm_path.startswith(p) for p in harness_prefixes):
+                        continue
+                    if os.path.isfile(rel_path):
+                        try:
+                            with open(rel_path, "r", encoding="utf-8", errors="ignore") as f:
+                                untracked_lines += sum(1 for _ in f)
+                        except Exception:
+                            pass
+
+        total = ins + dels + untracked_lines
+        if total > max_lines:
+            detail = f"{{total}} lines changed ({{ins}}+{{dels}} diff, {{untracked_lines}} untracked)" if untracked_lines > 0 else f"{{total}} lines changed"
+            print(f"[FAIL] Diff budget exceeded: {{detail}} (max: {{max_lines}}). Keep changes surgical!")
+            return False
+        if total > 0:
             print(f"[PASS] Diff budget check: {{total}}/{{max_lines}} lines changed.")
     except Exception as e:
         print(f"[WARN] Diff budget check skipped: {{e}}")
